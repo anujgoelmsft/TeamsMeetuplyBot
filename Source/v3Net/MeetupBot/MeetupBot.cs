@@ -63,7 +63,7 @@
                     await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair).ConfigureAwait(false);
                     await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1.ObjectId,
                         pair.Item2.ObjectId, pair.Item1.Name, pair.Item2.Name).ConfigureAwait(false);
-
+                    
                     countPairsNotified++;
                 }
 
@@ -121,6 +121,13 @@
 
             await NotifyUser(serviceUrl, cardForPerson1, teamsPerson1, tenantId).ConfigureAwait(false);
             await NotifyUser(serviceUrl, cardForPerson2, teamsPerson2, tenantId).ConfigureAwait(false);
+
+            if (CloudConfigurationManager.GetSetting("ServiceBusEnabled")?.Equals("true") ?? false)
+            {
+                var serviceBus = ServiceBusProvider.GetInstance();
+
+                await serviceBus.SendPairingMessageAsync(teamName, new List<TeamsChannelAccount>() { teamsPerson1, teamsPerson2 });
+            }
         }
 
         public static async Task WelcomeUser(string serviceUrl, string memberAddedId, string tenantId, string teamId)

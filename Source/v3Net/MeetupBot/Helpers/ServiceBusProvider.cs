@@ -2,12 +2,11 @@
 {
 	using System;
 	using System.Collections.Generic;
-	using System.Linq;
 	using System.Threading.Tasks;
 	using Azure.Messaging.ServiceBus;
-	using Microsoft.Azure;
 	using Microsoft.Bot.Connector.Teams.Models;
 	using System.Text.Json;
+	using Microsoft.Azure;
 
 	public class ServiceBusProvider
 	{
@@ -34,5 +33,15 @@
 
 			await sender.SendMessageAsync(message);
         }
+
+		internal static ServiceBusProvider GetInstance()
+		{
+			var serviceBusClient = new ServiceBusClient(CloudConfigurationManager.GetSetting("ServiceBusConnectionString"));
+
+			return new ServiceBusProvider(serviceBusClient)
+			{
+				TopicName = CloudConfigurationManager.GetSetting("ServiceBusTopicName")
+			};
+		}
 	}
 }

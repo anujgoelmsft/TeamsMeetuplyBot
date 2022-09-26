@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
@@ -47,6 +48,11 @@ namespace LetsMeetPairingFunctionApp
                     logger.LogError($"Exception pairing team {team.Teamname}. Details: {ex}");
                     throw;
                 }
+
+                // Wait for 10 minutes to pair the next team.
+                // This allows us to use a cheaper, single instance of the App Service performing the pairing.
+                // TODO: query backend to see when current pairing is complete instead of waiting for fixed time.
+                await Task.Delay(TimeSpan.FromMinutes(10));
             }
         }
 

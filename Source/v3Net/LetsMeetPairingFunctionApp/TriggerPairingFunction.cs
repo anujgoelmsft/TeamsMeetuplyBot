@@ -36,7 +36,7 @@ namespace LetsMeetPairingFunctionApp
         {
             foreach (var team in teams)
             {
-                logger.LogInformation($"Trigger pairing for team: {team}");
+                logger.LogInformation($"Sending request to pair team: {team}");
                 try
                 {
                     Uri uri = new Uri($"{MeetupBotUrl}/{team.Id}");
@@ -52,7 +52,7 @@ namespace LetsMeetPairingFunctionApp
                 // Wait for 10 minutes to pair the next team.
                 // This allows us to use a cheaper, single instance of the App Service performing the pairing.
                 // TODO: query backend to see when current pairing is complete instead of waiting for fixed time.
-                await Task.Delay(TimeSpan.FromMinutes(10));
+                // await Task.Delay(TimeSpan.FromMinutes(10));
             }
         }
 

@@ -15,6 +15,9 @@
         [JsonProperty("optedIn")]
         public bool OptedIn { get; set; }
 
+        [JsonProperty("hasBeenWelcomed")]
+        public bool HasBeenWelcomed { get; set; } = false;
+
         [JsonProperty("recentPairups")]
         public List<string> RecentPairUps { get; set; }
 

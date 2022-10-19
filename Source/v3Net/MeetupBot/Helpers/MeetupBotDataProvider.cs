@@ -181,6 +181,28 @@
 			return result;
 		}
 
+		public static async Task<UserOptInInfo> SetUserAsWelcomed(string tenantId, string userId)
+		{
+			// get existing document to not override optin
+			var user = await GetUserOptInStatusAsync(tenantId, userId);
+
+			if (user == null)
+			{
+				user = new UserOptInInfo()
+				{
+					TenantId = tenantId,
+					UserId = userId,
+					RecentPairUps = new List<string>()
+				};
+			}
+
+			user.HasBeenWelcomed = true;
+
+            await InitDatabaseAsync().ConfigureAwait(false);
+
+            return await StoreUserOptInStatus(user);
+        }
+
 		public static async Task<UserOptInInfo> SetUserOptInStatus(string tenantId, string userId, string userName, bool optedIn)
 		{
 			await InitDatabaseAsync().ConfigureAwait(false);

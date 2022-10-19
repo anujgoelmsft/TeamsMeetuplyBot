@@ -106,39 +106,31 @@
 
             Trace.TraceInformation($"Welcome all users and send notifications for team: [{team.Teamname}]");
 
+            int usersWelcomed = 0;
+
             try
             {
                 var members = await GetTeamMembers(team.ServiceUrl, team.TeamId, team.TenantId);
 
+                var users = await MeetupBotDataProvider.GetUserOptInStatusesAsync(team.TenantId);
+
                 foreach (var member in members)
                 {
                     var isBot = string.IsNullOrEmpty(member.Surname);
-                    optInInfo.TryGetValue(member.ObjectId, out UserOptInInfo optInStatus);
+                    users.TryGetValue(member.ObjectId, out UserOptInInfo user);
 
-                    if ((optInStatus == null || optInStatus.OptedIn) && !isBot)
+                    if ((user == null || !user.HasBeenWelcomed) && !isBot)
                     {
-                        optedInUsers.Add(member);
+                        Trace.TraceInformation($"Sending welcome message to [{member.Id} {member.Name}]");
+                        usersWelcomed++;
+                        await MeetupBot.WelcomeUser(team.ServiceUrl, member.Id, team.TenantId, team.TeamId);
+                        Trace.TraceInformation($"Marking user as welcomed [{member.Id} {member.Name}]");
+                        await MeetupBotDataProvider.SetUserAsWelcomed(team.TenantId, member.Id);
+                    } else
+                    {
+                        Trace.TraceInformation($"Skipping welcome message to [{member.Id} {member.Name}]");
                     }
                 }
-
-                var optInStatuses = await MeetupBotDataProvider.GetUserOptInStatusesAsync(team.TenantId);
-                Trace.TraceInformation($"Found [{optInStatuses.Count}] users in the DB ");
-
-                // This gets the opted in users from Database plus the new members in the team.
-                var optedInUsers = await GetOptedInUsers(team, optInStatuses);
-
-                var pairs = (await MakePairsAsync(team, optedInUsers, optInStatuses)).Take(maxPairUpsPerTeam);
-
-                foreach (var pair in pairs)
-                {
-                    await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair).ConfigureAwait(false);
-                    await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1.ObjectId,
-                        pair.Item2.ObjectId, pair.Item1.Name, pair.Item2.Name).ConfigureAwait(false);
-
-                    countPairsNotified++;
-                }
-
-                await SetTeamPairingStatusAsync(team, PairingStatus.Paired);
             }
             catch (UnauthorizedAccessException uae)
             {
@@ -147,8 +139,8 @@
 
             watch.Stop();
             var timeElapsed = Math.Round(watch.Elapsed.TotalSeconds);
-            Trace.TraceInformation($"{countPairsNotified} pairs created for team: {team.Teamname} in {timeElapsed} seconds");
-            return countPairsNotified;
+            Trace.TraceInformation($"{usersWelcomed} pairs created for team: {team.Teamname} in {timeElapsed} seconds");
+            return usersWelcomed;
         }
 
         public static async Task<List<TeamInstallInfo>> GetAllTeamsInfoAsync()
@@ -170,6 +162,8 @@
 
         private static async Task<string> GetTeamNameAsync(string serviceUrl, string teamId)
         {
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
+
             using (var client = new ConnectorClient(new Uri(serviceUrl)))
             {
                 var teamsConnectorClient = client.GetTeamsConnectorClient();
@@ -205,13 +199,21 @@
             }
         }
 
-        public static async Task WelcomeUser(string serviceUrl, string memberAddedId, string tenantId, string teamId)
+        public static async Task WelcomeUser(string serviceUrl, string memberAddedId, string tenantId, string conversationId)
         {
-            var teamName = await GetTeamNameAsync(serviceUrl, teamId);
+            Trace.TraceInformation($"Welcome User - Getting team info for id {conversationId}");
 
-            var allMembers = await GetTeamMembers(serviceUrl, teamId, tenantId);
+            var teamName = await GetTeamNameAsync(serviceUrl, conversationId);
+
+            Trace.TraceInformation($"Welcome User - Team found name: {teamName}, getting team members.");
+
+            var allMembers = await GetTeamMembers(serviceUrl, conversationId, tenantId);
+
+            Trace.TraceInformation($"Welcome User - Team members retrieved {allMembers.Length} found.");
 
             TeamsChannelAccount userThatJustJoined = null;
+
+            Trace.TraceInformation($"Welcome User - Finding member with id {memberAddedId}");
 
             foreach (var m in allMembers)
             {
@@ -222,13 +224,17 @@
                 }
             }
 
+            if (userThatJustJoined == null)
+            {
+                Trace.TraceWarning($"User {memberAddedId} not found");
+            }
+
+            Trace.TraceInformation($"Welcome User - Constructing welcome card {memberAddedId}");
+
             var welcomeMessageCard = WelcomeNewMemberCard.GetCard(teamName, userThatJustJoined.Name);
 
-            if (userThatJustJoined != null)
-            {
-                Trace.TraceInformation($"Notify User: [{userThatJustJoined.Name}] about addition to the team: [{teamName}]");
-                await NotifyUser(serviceUrl, welcomeMessageCard, userThatJustJoined, tenantId);
-            }
+            Trace.TraceInformation($"Notify User: [{userThatJustJoined.Name}] about addition to the team: [{teamName}]");
+            await NotifyUser(serviceUrl, welcomeMessageCard, userThatJustJoined, tenantId);
         }
 
         private static async Task NotifyUser(string serviceUrl, string cardToSend, ChannelAccount user, string tenantId)
@@ -305,15 +311,24 @@
 
         private static async Task<TeamsChannelAccount[]> GetTeamMembers(string serviceUrl, string teamId, string tenantId)
         {
+            Trace.TraceInformation($"DEBUG 1");
             MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
-
+            Trace.TraceInformation($"DEBUG 2");
             using (var connector = new ConnectorClient(new Uri(serviceUrl)))
             {
-                // Pull the roster of specified team and then remove everyone who has opted out explicitly
-#pragma warning disable CS0618 // Type or member is obsolete
-                var members = await connector.Conversations.GetTeamsConversationMembersAsync(teamId, tenantId);
-#pragma warning restore CS0618 // Type or member is obsolete
-                return members;
+                Trace.TraceInformation($"DEBUG 3");
+                try
+                {
+                    // Pull the roster of specified team and then remove everyone who has opted out explicitly
+                    //var members = await connector.Conversations.GetTeamsConversationMembersAsync(teamId, tenantId);
+                    var members = await connector.Conversations.GetConversationMembersAsync(teamId);
+                    Trace.TraceInformation($"DEBUG 4");
+                    return members.Select(m => m.AsTeamsChannelAccount()).ToArray();
+                } catch (Exception e)
+                {
+                    Trace.TraceError(e.ToString());
+                    return null;
+                }
             }
         }
 

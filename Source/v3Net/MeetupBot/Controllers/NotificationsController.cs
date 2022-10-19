@@ -28,6 +28,5 @@ namespace MeetupBot.Controllers
         {
             return await MeetupBot.WelcomeAllUsersAsync(teamId);
         }
-
     }
 }

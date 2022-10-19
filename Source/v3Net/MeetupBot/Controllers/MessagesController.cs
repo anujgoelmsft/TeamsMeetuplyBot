@@ -41,14 +41,14 @@
                     var senderAadId = senderInfo.Properties["aadObjectId"].ToString();
                     var senderName = senderInfo.Name;
 
-                    if (optOutRequst || string.Equals(activity.Text, "optout", StringComparison.InvariantCultureIgnoreCase))
+                    if (optOutRequst || activity.Text.ToLowerInvariant().Contains("optout") || activity.Text.ToLowerInvariant().Contains("opt-out"))
                     {
                         System.Diagnostics.Trace.TraceInformation($"Received an Opt-out request");
 
                         await MeetupBot.OptOutUser(activity.GetChannelData<TeamsChannelData>().Tenant.Id, senderAadId, senderName);
                         replyText = Resources.OptOutConfirmation;
                     }
-                    else if (string.Equals(activity.Text, "optin", StringComparison.InvariantCultureIgnoreCase))
+                    else if (activity.Text.ToLowerInvariant().Contains("optin") || activity.Text.ToLowerInvariant().Contains("opt-in"))
                     {
                         System.Diagnostics.Trace.TraceInformation($"Received an Opt-in request");
 

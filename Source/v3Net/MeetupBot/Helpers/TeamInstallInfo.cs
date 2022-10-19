@@ -23,9 +23,16 @@
         [JsonProperty("lastPairedAtUTC")]
         public string LastPairedAtUTC { get; set; }
 
+        [JsonProperty("optMode")]
+        public string OptMode { get; set; } = OptInMode;
+
+        public const string OptInMode = "optin";
+
+        public const string OptOutMode = "optout";
+
 		public override string ToString()
 		{
-			return $"Name = {this.Teamname}, TeamId = {this.TeamId}, Id = {this.Id}, PairingStatus = {this.PairingStatus}, LastPairedOn = {this.LastPairedAtUTC}";
+			return $"Name = {this.Teamname}, TeamId = {this.TeamId}, Id = {this.Id}, PairingStatus = {this.PairingStatus}, LastPairedOn = {this.LastPairedAtUTC}, OptMode = {OptMode}";
 		}
 	}
 

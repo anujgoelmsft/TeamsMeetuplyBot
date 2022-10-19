@@ -274,6 +274,7 @@
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\MessagesController.cs" />
+    <Compile Include="Controllers\NotificationsController.cs" />
     <Compile Include="Controllers\ProcessNowController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
@@ -299,7 +300,11 @@
     <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPerson2.json" />
     <Content Include="Helpers\AdaptiveCards\WelcomeNewMemberCard.json" />
     <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPerson1.json" />
+    <Content Include="Helpers\AdaptiveCards\WelcomeNewMemberCardDev.json" />
+    <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPersonCSE.json" />
+    <None Include="Properties\PublishProfiles\MeetupAppService - Web Deploy.pubxml" />
     <None Include="Properties\PublishProfiles\MeetupBotAppService - Web Deploy.pubxml" />
+    <None Include="Properties\PublishProfiles\MeetupBotAppService-Dev - Web Deploy.pubxml" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

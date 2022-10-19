@@ -80,6 +80,77 @@
             return countPairsNotified;
         }
 
+        public static async Task<int> WelcomeAllUsersAsync(string teamId)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+
+            // Find the team with this team id.
+            //     Get all members in the team
+            //     Remove the members who have opted out of pairing
+            //     Match each member with someone else
+            //     Save this pair
+            //     Add the member to DB if not already done
+            // Now notify each pair found in 1:1 and ask them to reach out to the other person
+            // When contacting the user in 1:1, give them the button to opt-out.
+
+            TeamInstallInfo team = new TeamInstallInfo();
+
+            List<TeamInstallInfo> teams = await GetAllTeamsInfoAsync().ConfigureAwait(false);
+            team = teams.FirstOrDefault(t => t.Id == teamId);
+
+            if (team == null)
+            {
+                Trace.TraceError($"No team found with Id: [{teamId}]. Return.");
+                return -1;
+            }
+
+            Trace.TraceInformation($"Welcome all users and send notifications for team: [{team.Teamname}]");
+
+            try
+            {
+                var members = await GetTeamMembers(team.ServiceUrl, team.TeamId, team.TenantId);
+
+                foreach (var member in members)
+                {
+                    var isBot = string.IsNullOrEmpty(member.Surname);
+                    optInInfo.TryGetValue(member.ObjectId, out UserOptInInfo optInStatus);
+
+                    if ((optInStatus == null || optInStatus.OptedIn) && !isBot)
+                    {
+                        optedInUsers.Add(member);
+                    }
+                }
+
+                var optInStatuses = await MeetupBotDataProvider.GetUserOptInStatusesAsync(team.TenantId);
+                Trace.TraceInformation($"Found [{optInStatuses.Count}] users in the DB ");
+
+                // This gets the opted in users from Database plus the new members in the team.
+                var optedInUsers = await GetOptedInUsers(team, optInStatuses);
+
+                var pairs = (await MakePairsAsync(team, optedInUsers, optInStatuses)).Take(maxPairUpsPerTeam);
+
+                foreach (var pair in pairs)
+                {
+                    await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair).ConfigureAwait(false);
+                    await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1.ObjectId,
+                        pair.Item2.ObjectId, pair.Item1.Name, pair.Item2.Name).ConfigureAwait(false);
+
+                    countPairsNotified++;
+                }
+
+                await SetTeamPairingStatusAsync(team, PairingStatus.Paired);
+            }
+            catch (UnauthorizedAccessException uae)
+            {
+                Trace.TraceError($"Failed to process a team: {team} due to error {uae}");
+            }
+
+            watch.Stop();
+            var timeElapsed = Math.Round(watch.Elapsed.TotalSeconds);
+            Trace.TraceInformation($"{countPairsNotified} pairs created for team: {team.Teamname} in {timeElapsed} seconds");
+            return countPairsNotified;
+        }
+
         public static async Task<List<TeamInstallInfo>> GetAllTeamsInfoAsync()
         {
             Trace.TraceInformation($"Get All Teams where the bot is registered.");
@@ -122,7 +193,11 @@
             await NotifyUser(serviceUrl, cardForPerson1, teamsPerson1, tenantId).ConfigureAwait(false);
             await NotifyUser(serviceUrl, cardForPerson2, teamsPerson2, tenantId).ConfigureAwait(false);
 
-            if (CloudConfigurationManager.GetSetting("ServiceBusEnabled")?.Equals("true") ?? false)
+            var serviceBusEnabled = CloudConfigurationManager.GetSetting("ServiceBusEnabled") ?? "false";
+
+            Trace.TraceInformation($"Checking if ServiceBusEnabled: {serviceBusEnabled}");
+
+            if (serviceBusEnabled?.Equals("true") ?? false)
             {
                 var serviceBus = ServiceBusProvider.GetInstance();
 

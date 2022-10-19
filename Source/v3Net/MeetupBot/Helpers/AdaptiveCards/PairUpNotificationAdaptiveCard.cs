@@ -1,5 +1,6 @@
 ﻿namespace MeetupBot.Helpers.AdaptiveCards
 {
+    using Microsoft.Azure;
     using System.Collections.Generic;
     using System.IO;
     using System.Web.Hosting;
@@ -17,7 +18,10 @@
                 { "personUpn", personUpn }
             };
 
-            var card = (isPerson1 == true) ? "PairUpNotificationAdaptiveCardPerson1.json" : "PairUpNotificationAdaptiveCardPerson2.json";
+            var pairUpNotificationPerson1 = CloudConfigurationManager.GetSetting("CardFilename_PairUpPerson1") ?? "PairUpNotificationAdaptiveCardPerson1.json";
+            var pairUpNotificationPerson2 = CloudConfigurationManager.GetSetting("CardFilename_PairUpPerson2") ?? "PairUpNotificationAdaptiveCardPerson2.json";
+
+            var card = (isPerson1 == true) ? pairUpNotificationPerson1 : pairUpNotificationPerson2;
             var cardJsonFilePath = HostingEnvironment.MapPath($"~/Helpers/AdaptiveCards/{card}");
             var cardTemplate = File.ReadAllText(cardJsonFilePath);
 

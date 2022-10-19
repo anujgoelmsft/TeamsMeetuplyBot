@@ -5,8 +5,9 @@
 	using System.Threading.Tasks;
 	using Azure.Messaging.ServiceBus;
 	using Microsoft.Bot.Connector.Teams.Models;
-	using System.Text.Json;
 	using Microsoft.Azure;
+	using System.Diagnostics;
+	using Newtonsoft.Json;
 
 	public class ServiceBusProvider
 	{
@@ -27,20 +28,36 @@
 				Users = users
 			};
 
-            var sender = serviceBusClient.CreateSender(TopicName);
+            Trace.TraceInformation($"Creating sender using topic {TopicName}");
+            try
+            {
 
-            var message = new ServiceBusMessage(JsonSerializer.Serialize(messageBody));
+                var sender = serviceBusClient.CreateSender(TopicName);
 
-			await sender.SendMessageAsync(message);
+	            Trace.TraceInformation($"Serializing message for the team {teamName}");
+
+			    var message = new ServiceBusMessage(JsonConvert.SerializeObject(messageBody));
+
+                Trace.TraceInformation($"Sending serialized message {message.Body}");
+
+                await sender.SendMessageAsync(message);
+            } catch (Exception e)
+			{
+				Trace.TraceError($"Error sending message to service bus: {e}");
+			}
         }
 
 		internal static ServiceBusProvider GetInstance()
 		{
 			var serviceBusClient = new ServiceBusClient(CloudConfigurationManager.GetSetting("ServiceBusConnectionString"));
 
-			return new ServiceBusProvider(serviceBusClient)
+			var topic = CloudConfigurationManager.GetSetting("ServiceBusTopicName");
+
+            Trace.TraceInformation($"Using topic {topic}");
+
+            return new ServiceBusProvider(serviceBusClient)
 			{
-				TopicName = CloudConfigurationManager.GetSetting("ServiceBusTopicName")
+				TopicName = topic
 			};
 		}
 	}

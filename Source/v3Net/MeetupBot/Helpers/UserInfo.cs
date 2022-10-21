@@ -16,7 +16,7 @@
         public string UserId { get; set; }
 
         [JsonProperty("optedIn")]
-        public bool OptedIn { get; set; }
+        public bool? OptedIn { get; set; } = null;
 
         [JsonProperty("hasBeenWelcomed")]
         public bool HasBeenWelcomed { get; set; } = false;

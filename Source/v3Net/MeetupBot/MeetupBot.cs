@@ -335,8 +335,7 @@
                 optInInfo.TryGetValue(member.ObjectId, out UserInfo optInStatus);
 
                 if (!isBot && 
-                    teamInfo.OptMode.Equals(TeamInstallInfo.OptInMode) &&
-                    (optInStatus == null || optInStatus.OptedIn))
+                    (optInStatus?.OptedIn ?? teamInfo.OptMode.Equals(TeamInstallInfo.OptInMode)))
                 {
                     optedInUsers.Add(member);
                 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Web;
 using System.Web.Mvc;
+using Microsoft.Azure;
 using Newtonsoft.Json;
 using TriggerPairingWebApp.Models;
 
@@ -15,8 +16,13 @@ namespace TriggerPairingWebApp.Controllers
 		// GET: Home
 		public ActionResult Index()
 		{
-			var teamsInfoList = TeamsDataProvider.GetAllTeams();
-			var teamsSelectList = teamsInfoList.Select(t => new SelectListItem
+			List<TeamInfo> teamsInfoList;
+
+            teamsInfoList = TeamsDataProvider.GetAllTeams();
+
+            System.Diagnostics.Trace.TraceInformation($"{teamsInfoList.Count} teams retrieved.");
+
+            var teamsSelectList = teamsInfoList.Select(t => new SelectListItem
 			{
 				Text = t.Teamname,
 				Value = t.Id
@@ -33,15 +39,28 @@ namespace TriggerPairingWebApp.Controllers
 				})
 			};
 
-			return View(viewModel);
+            System.Diagnostics.Trace.TraceInformation($"Rendering view model");
+
+            return View(viewModel);
 		}
 
-		[HttpPost]
-		public ActionResult Index(TeamViewModel model)
+
+        [HttpPost]
+		public ActionResult Pair(TeamViewModel model)
 		{
-			// Send Web Request to trigger pairing
-			var selectedTeamId = model.SelectedTeamId;
-			WebRequest webRequest = WebRequest.Create($"https://meetupbotappservice.azurewebsites.net/api/processnow/{selectedTeamId}");
+			var baseUri = CloudConfigurationManager.GetSetting("MeetupBotAppUri") ?? "https://meetupbotappservice.azurewebsites.net";
+
+            // Send Web Request to trigger pairing
+            var selectedTeamId = model.SelectedTeamId;
+
+            if (selectedTeamId == null)
+            {
+                throw new ArgumentNullException("selectedTeamId");
+            }
+
+            System.Diagnostics.Trace.TraceInformation($"Creating a request for {baseUri}/api/processnow/{selectedTeamId}");
+            
+			WebRequest webRequest = WebRequest.Create($"{baseUri}/api/processnow/{selectedTeamId}");
 			webRequest.Method = "POST";
 			webRequest.ContentLength = 0;
 			webRequest.GetResponse();
@@ -50,7 +69,31 @@ namespace TriggerPairingWebApp.Controllers
 			return Redirect("~/");
 		}
 
-		public ActionResult About()
+        [HttpPost]
+        public ActionResult Welcome(TeamViewModel model)
+        {
+            var baseUri = CloudConfigurationManager.GetSetting("MeetupBotAppUri") ?? "https://meetupbotappservice.azurewebsites.net";
+
+            // Send Web Request to trigger pairing
+            var selectedTeamId = model.SelectedTeamId;
+
+            System.Diagnostics.Trace.TraceInformation($"Creating a request for {baseUri}/api/welcome-users/{selectedTeamId}");
+
+			if (selectedTeamId == null)
+			{
+				throw new ArgumentNullException("selectedTeamId");
+			}
+
+            WebRequest webRequest = WebRequest.Create($"{baseUri}/api/welcome-users/{selectedTeamId}");
+            webRequest.Method = "POST";
+            webRequest.ContentLength = 0;
+            webRequest.GetResponse();
+
+            // go back to home page
+            return Redirect("~/");
+        }
+
+        public ActionResult About()
 		{
 			ViewBag.Message = "Your application description page.";
 

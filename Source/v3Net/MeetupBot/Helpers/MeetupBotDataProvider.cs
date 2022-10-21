@@ -236,70 +236,31 @@
             return await CreateUpdateUserInfo(user);
         }
 
-		public static async Task<bool> StorePairup(string tenantId, Dictionary<string, UserInfo> userOptInInfo, string userId1, string userId2, string userFullName1, string userFullName2)
+		public static async Task<bool> StorePairup(string tenantId, Dictionary<string, UserInfo> userOptInInfo, TeamsChannelAccount user1, TeamsChannelAccount user2)
 		{
-			System.Diagnostics.Trace.TraceInformation($"Storing the pair: [{userFullName1}] and [{userFullName2}]");
+			System.Diagnostics.Trace.TraceInformation($"Storing the pair: [{user1.ObjectId}] and [{user2.ObjectId}]");
 			await InitDatabaseAsync().ConfigureAwait(false);
 
 			var maxPairUpHistory = Convert.ToInt64(CloudConfigurationManager.GetSetting("MaxPairUpHistory"));
 
-			var user1Info = new UserInfo()
-			{
-				TenantId = tenantId,
-				UserId = userId1,
-				OptedIn = true,
-			};
-
-			if (userOptInInfo.TryGetValue(userId1, out UserInfo initialUser1Info))
-			{
-				// User already exists.
-				// Get their recent pairs and add the new one to the list.
-				System.Diagnostics.Trace.TraceInformation($"User [{userFullName1}] already exists in the system. Get previous pairs.");
-
-				user1Info.RecentPairUps = initialUser1Info.RecentPairUps ?? new List<string>();
-				user1Info.Id = initialUser1Info.Id;
-			}
-			else
-			{
-				System.Diagnostics.Trace.TraceInformation($"User [{userFullName1}] not found in the system. Create a new Pair list");
-				user1Info.RecentPairUps = new List<string>();
-			}
-
-			var user2Info = new UserInfo()
-			{
-				TenantId = tenantId,
-				UserId = userId2,
-				OptedIn = true,
-			};
-
-			if (userOptInInfo.TryGetValue(userId2, out UserInfo initialUser2Info))
-			{
-				// User already exists.
-				// Get their recent pairs and add the new one to the list.
-				System.Diagnostics.Trace.TraceInformation($"User [{userFullName2}] already exists in the system. Get previous pairs.");
-
-				user2Info.RecentPairUps = initialUser2Info.RecentPairUps ?? new List<string>();
-				user2Info.Id = initialUser2Info.Id;
-			}
-			else
-			{
-				System.Diagnostics.Trace.TraceInformation($"User [{userFullName2}] not found in the system. Create a new Pair list");
-				user2Info.RecentPairUps = new List<string>();
-			}
+            var user1Info = await GetExistingOrNewUserInfoAsync(tenantId, user1);
+            var user2Info = await GetExistingOrNewUserInfoAsync(tenantId, user2);
 
 			user1Info.RecentPairUps.Add(user2Info.UserId);
+
 			if (user1Info.RecentPairUps.Count > maxPairUpHistory)
 			{
 				user1Info.RecentPairUps.RemoveAt(0);
 			}
 
 			user2Info.RecentPairUps.Add(user1Info.UserId);
+
 			if (user2Info.RecentPairUps.Count > maxPairUpHistory)
 			{
 				user2Info.RecentPairUps.RemoveAt(0);
 			}
 
-			System.Diagnostics.Trace.TraceInformation($"Updating the pair : [{userFullName1}] and [{userFullName2}] in DB");
+			System.Diagnostics.Trace.TraceInformation($"Updating the pair: [{user1.ObjectId}] and [{user2.ObjectId}] in DB");
 
 			if (isTesting)
 			{

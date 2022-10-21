@@ -61,8 +61,7 @@
                 foreach (var pair in pairs)
                 {
                     await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair).ConfigureAwait(false);
-                    await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1.ObjectId,
-                        pair.Item2.ObjectId, pair.Item1.Name, pair.Item2.Name).ConfigureAwait(false);
+                    await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1, pair.Item2).ConfigureAwait(false);
                     
                     countPairsNotified++;
                 }

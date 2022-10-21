@@ -301,7 +301,7 @@
     <Content Include="Helpers\AdaptiveCards\WelcomeNewMemberCard.json" />
     <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPerson1.json" />
     <Content Include="Helpers\AdaptiveCards\WelcomeNewMemberCardOptOut.json" />
-    <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPersonCSE.json" />
+    <Content Include="Helpers\AdaptiveCards\PairUpNotificationAdaptiveCardPersonCortana.json" />
     <None Include="Properties\PublishProfiles\MeetupAppService - Web Deploy.pubxml" />
     <None Include="Properties\PublishProfiles\MeetupBotAppService - Web Deploy.pubxml" />
     <None Include="Properties\PublishProfiles\MeetupBotAppService-Dev - Web Deploy.pubxml" />

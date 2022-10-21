@@ -11,6 +11,7 @@
 	using Microsoft.Bot.Connector;
     using Microsoft.Bot.Connector.Teams;
     using Microsoft.Bot.Connector.Teams.Models;
+    using Newtonsoft.Json;
     using Properties;  
 
     [BotAuthentication]
@@ -38,21 +39,20 @@
                 try
                 {
                     var senderInfo = activity.From.AsTeamsChannelAccount();
-                    var senderAadId = senderInfo.Properties["aadObjectId"].ToString();
-                    var senderName = senderInfo.Name;
-
-                    if (optOutRequst || activity.Text.ToLowerInvariant().Contains("optout") || activity.Text.ToLowerInvariant().Contains("opt-out"))
+                    senderInfo.ObjectId = senderInfo.Properties["aadObjectId"].ToString();
+                    
+                    if (optOutRequst || activity.Text.ToLowerInvariant().Contains("optout") || activity.Text.ToLowerInvariant().Contains("opt-out") || activity.Text.ToLowerInvariant().Contains("opt out"))
                     {
                         System.Diagnostics.Trace.TraceInformation($"Received an Opt-out request");
 
-                        await MeetupBot.OptOutUser(activity.GetChannelData<TeamsChannelData>().Tenant.Id, senderAadId, senderName);
+                        await MeetupBot.OptOutUser(activity.GetChannelData<TeamsChannelData>().Tenant.Id, senderInfo);
                         replyText = Resources.OptOutConfirmation;
                     }
-                    else if (activity.Text.ToLowerInvariant().Contains("optin") || activity.Text.ToLowerInvariant().Contains("opt-in"))
+                    else if (activity.Text.ToLowerInvariant().Contains("optin") || activity.Text.ToLowerInvariant().Contains("opt-in") || activity.Text.ToLowerInvariant().Contains("opt in"))
                     {
                         System.Diagnostics.Trace.TraceInformation($"Received an Opt-in request");
 
-                        await MeetupBot.OptInUser(activity.GetChannelData<TeamsChannelData>().Tenant.Id, senderAadId, senderName);
+                        await MeetupBot.OptInUser(activity.GetChannelData<TeamsChannelData>().Tenant.Id, senderInfo);
                         replyText = Resources.OptInConfirmation;
                     }
                     else
@@ -134,7 +134,7 @@
                             {
                                 // someone else was added
                                 // send them a welcome message
-                                await MeetupBot.WelcomeUser(message.ServiceUrl, memberId, channelData.Tenant.Id, channelData.Team.Id);
+                                await MeetupBot.WelcomeUser(message.ServiceUrl, member, channelData.Tenant.Id, channelData.Team.Id);
                             }
                         }
                     }

@@ -117,18 +117,19 @@
                 foreach (var member in members)
                 {
                     var isBot = string.IsNullOrEmpty(member.Surname);
-                    users.TryGetValue(member.ObjectId, out UserOptInInfo user);
+                    users.TryGetValue(member.ObjectId, out UserInfo user);
+
+                    Trace.TraceInformation($"User ids: {string.Join(", ", users.Keys)}");
 
                     if ((user == null || !user.HasBeenWelcomed) && !isBot)
                     {
-                        Trace.TraceInformation($"Sending welcome message to [{member.Id} {member.Name}]");
+                        Trace.TraceInformation($"Sending welcome message to [{member.ObjectId} {member.Name}]");
                         usersWelcomed++;
-                        await MeetupBot.WelcomeUser(team.ServiceUrl, member.Id, team.TenantId, team.TeamId);
-                        Trace.TraceInformation($"Marking user as welcomed [{member.Id} {member.Name}]");
-                        await MeetupBotDataProvider.SetUserAsWelcomed(team.TenantId, member.Id);
-                    } else
+                        await MeetupBot.WelcomeUser(team.ServiceUrl, member, team.TenantId, team.TeamId);
+                    } 
+                    else
                     {
-                        Trace.TraceInformation($"Skipping welcome message to [{member.Id} {member.Name}]");
+                        Trace.TraceInformation($"Skipping welcome message to [{member.ObjectId} {member.Name}]");
                     }
                 }
             }
@@ -139,7 +140,7 @@
 
             watch.Stop();
             var timeElapsed = Math.Round(watch.Elapsed.TotalSeconds);
-            Trace.TraceInformation($"{usersWelcomed} pairs created for team: {team.Teamname} in {timeElapsed} seconds");
+            Trace.TraceInformation($"{usersWelcomed} welcomed for team: {team.Teamname} in {timeElapsed} seconds");
             return usersWelcomed;
         }
 
@@ -199,7 +200,7 @@
             }
         }
 
-        public static async Task WelcomeUser(string serviceUrl, string memberAddedId, string tenantId, string conversationId)
+        public static async Task WelcomeUser(string serviceUrl, ChannelAccount member, string tenantId, string conversationId)
         {
             Trace.TraceInformation($"Welcome User - Getting team info for id {conversationId}");
 
@@ -211,30 +212,22 @@
 
             Trace.TraceInformation($"Welcome User - Team members retrieved {allMembers.Length} found.");
 
-            TeamsChannelAccount userThatJustJoined = null;
+            Trace.TraceInformation($"Welcome User - Constructing welcome card for user id  {member?.Id} {member?.Name} and team {teamName}");
 
-            Trace.TraceInformation($"Welcome User - Finding member with id {memberAddedId}");
-
-            foreach (var m in allMembers)
+            try
             {
-                // both values are 29: values
-                if (m.Id == memberAddedId)
-                {
-                    userThatJustJoined = m;
-                }
-            }
+                var welcomeMessageCard = WelcomeNewMemberCard.GetCard(teamName, member?.Name);
 
-            if (userThatJustJoined == null)
+                Trace.TraceInformation($"Notify User: [{member?.Name}] about addition to the team: [{teamName}]");
+                await NotifyUser(serviceUrl, welcomeMessageCard, member, tenantId);
+
+                Trace.TraceInformation($"Marking user as welcomed [{member?.AsTeamsChannelAccount().ObjectId}]");
+                await MeetupBotDataProvider.SetUserAsWelcomed(tenantId, member?.AsTeamsChannelAccount());
+            } catch(Exception e)
             {
-                Trace.TraceWarning($"User {memberAddedId} not found");
+                Trace.TraceError(e.ToString());
+                throw;
             }
-
-            Trace.TraceInformation($"Welcome User - Constructing welcome card {memberAddedId}");
-
-            var welcomeMessageCard = WelcomeNewMemberCard.GetCard(teamName, userThatJustJoined.Name);
-
-            Trace.TraceInformation($"Notify User: [{userThatJustJoined.Name}] about addition to the team: [{teamName}]");
-            await NotifyUser(serviceUrl, welcomeMessageCard, userThatJustJoined, tenantId);
         }
 
         private static async Task NotifyUser(string serviceUrl, string cardToSend, ChannelAccount user, string tenantId)
@@ -299,30 +292,29 @@
             await MeetupBotDataProvider.SaveTeamStatusAsync(teamInfo, status);
         }
 
-        public static async Task OptOutUser(string tenantId, string userId, string userName)
+        public static async Task OptOutUser(string tenantId, TeamsChannelAccount user)
         {
-            await MeetupBotDataProvider.SetUserOptInStatus(tenantId, userId, userName, false);
+            await MeetupBotDataProvider.SetUserOptInStatus(tenantId, user, false);
         }
 
-        public static async Task OptInUser(string tenantId, string userId, string userName)
+        public static async Task OptInUser(string tenantId, TeamsChannelAccount user)
         {
-            await MeetupBotDataProvider.SetUserOptInStatus(tenantId, userId, userName, true);
+            await MeetupBotDataProvider.SetUserOptInStatus(tenantId, user, true);
         }
 
         private static async Task<TeamsChannelAccount[]> GetTeamMembers(string serviceUrl, string teamId, string tenantId)
         {
-            Trace.TraceInformation($"DEBUG 1");
+            
             MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
-            Trace.TraceInformation($"DEBUG 2");
+            
             using (var connector = new ConnectorClient(new Uri(serviceUrl)))
             {
-                Trace.TraceInformation($"DEBUG 3");
                 try
                 {
                     // Pull the roster of specified team and then remove everyone who has opted out explicitly
                     //var members = await connector.Conversations.GetTeamsConversationMembersAsync(teamId, tenantId);
                     var members = await connector.Conversations.GetConversationMembersAsync(teamId);
-                    Trace.TraceInformation($"DEBUG 4");
+                    
                     return members.Select(m => m.AsTeamsChannelAccount()).ToArray();
                 } catch (Exception e)
                 {
@@ -332,7 +324,7 @@
             }
         }
 
-        private static async Task<List<TeamsChannelAccount>> GetOptedInUsers(TeamInstallInfo teamInfo, Dictionary<string, UserOptInInfo> optInInfo)
+        private static async Task<List<TeamsChannelAccount>> GetOptedInUsers(TeamInstallInfo teamInfo, Dictionary<string, UserInfo> optInInfo)
         {
             var optedInUsers = new List<TeamsChannelAccount>();
 
@@ -341,7 +333,7 @@
             foreach (var member in members)
             {
                 var isBot = string.IsNullOrEmpty(member.Surname);
-                optInInfo.TryGetValue(member.ObjectId, out UserOptInInfo optInStatus);
+                optInInfo.TryGetValue(member.ObjectId, out UserInfo optInStatus);
 
                 if (!isBot && 
                     teamInfo.OptMode.Equals(TeamInstallInfo.OptInMode) &&
@@ -355,7 +347,7 @@
             return optedInUsers;
         }
 
-        private static async Task<List<Tuple<TeamsChannelAccount, TeamsChannelAccount>>> MakePairsAsync(TeamInstallInfo team, List<TeamsChannelAccount> incomingUsers, Dictionary<string, UserOptInInfo> optInInfo)
+        private static async Task<List<Tuple<TeamsChannelAccount, TeamsChannelAccount>>> MakePairsAsync(TeamInstallInfo team, List<TeamsChannelAccount> incomingUsers, Dictionary<string, UserInfo> optInInfo)
         {
             Trace.TraceInformation($"Making pairs for [{incomingUsers.Count}] users.");
 
@@ -407,7 +399,7 @@
             _ = await MeetupBotDataProvider.SaveTeamStatusAsync(updatedTeam, TeamUpdateType.PairingInfo);
         }
 
-        private static List<Tuple<TeamsChannelAccount, TeamsChannelAccount>> MakePairsInternal(List<TeamsChannelAccount> users, Dictionary<string, UserOptInInfo> optInInfo, bool canTryAgain = true)
+        private static List<Tuple<TeamsChannelAccount, TeamsChannelAccount>> MakePairsInternal(List<TeamsChannelAccount> users, Dictionary<string, UserInfo> optInInfo, bool canTryAgain = true)
         {
             var pairs = new List<Tuple<TeamsChannelAccount, TeamsChannelAccount>>();
 

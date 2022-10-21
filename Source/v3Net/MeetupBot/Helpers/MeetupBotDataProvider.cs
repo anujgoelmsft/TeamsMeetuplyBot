@@ -7,7 +7,10 @@
 	using Microsoft.Azure;
 	using Microsoft.Azure.Documents;
 	using Microsoft.Azure.Documents.Client;
-	
+	using Microsoft.Bot.Connector.Teams.Models;
+	using static System.Windows.Forms.VisualStyles.VisualStyleElement.ListView;
+	using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
+
 	public static class MeetupBotDataProvider
 	{
 		private static DocumentClient documentClient;
@@ -138,7 +141,7 @@
 			return match;
 		}
 
-		public static async Task<UserOptInInfo> GetUserOptInStatusAsync(string tenantId, string userId)
+		public static async Task<UserInfo> GetUserInfoAsync(string tenantId, string userId)
 		{
 			await InitDatabaseAsync().ConfigureAwait(false);
 
@@ -149,7 +152,7 @@
 			FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
 
 			// Find matching activities
-			var lookupQuery = documentClient.CreateDocumentQuery<UserOptInInfo>(
+			var lookupQuery = documentClient.CreateDocumentQuery<UserInfo>(
 				UriFactory.CreateDocumentCollectionUri(databaseName, collectionName), queryOptions)
 				.Where(f => f.TenantId == tenantId && f.UserId == userId);
 
@@ -157,7 +160,7 @@
 			return match.FirstOrDefault();
 		}
 
-		public static async Task<Dictionary<string, UserOptInInfo>> GetUserOptInStatusesAsync(string tenantId)
+        public static async Task<Dictionary<string, UserInfo>> GetUserOptInStatusesAsync(string tenantId)
 		{
 			await InitDatabaseAsync().ConfigureAwait(false);
 
@@ -168,11 +171,11 @@
 			FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
 
 			// Find matching activities
-			var lookupQuery = documentClient.CreateDocumentQuery<UserOptInInfo>(
+			var lookupQuery = documentClient.CreateDocumentQuery<UserInfo>(
 				UriFactory.CreateDocumentCollectionUri(databaseName, collectionName), queryOptions)
 				.Where(f => f.TenantId == tenantId);
 
-			var result = new Dictionary<string, UserOptInInfo>();
+			var result = new Dictionary<string, UserInfo>();
 			foreach (var status in lookupQuery)
 			{
 				result.Add(status.UserId, status);
@@ -181,61 +184,73 @@
 			return result;
 		}
 
-		public static async Task<UserOptInInfo> SetUserAsWelcomed(string tenantId, string userId)
+		public static async Task<UserInfo> SetUserAsWelcomed(string tenantId, TeamsChannelAccount teamsChannelAccount)
 		{
-			// get existing document to not override optin
-			var user = await GetUserOptInStatusAsync(tenantId, userId);
-
-			if (user == null)
-			{
-				user = new UserOptInInfo()
-				{
-					TenantId = tenantId,
-					UserId = userId,
-					RecentPairUps = new List<string>()
-				};
-			}
+			var user = await GetExistingOrNewUserInfoAsync(tenantId, teamsChannelAccount);
 
 			user.HasBeenWelcomed = true;
 
-            await InitDatabaseAsync().ConfigureAwait(false);
-
-            return await StoreUserOptInStatus(user);
-        }
-
-		public static async Task<UserOptInInfo> SetUserOptInStatus(string tenantId, string userId, string userName, bool optedIn)
-		{
 			await InitDatabaseAsync().ConfigureAwait(false);
 
-			var userInfo = new UserOptInInfo()
+            return await CreateUpdateUserInfo(user);
+        }
+
+		private static async Task<UserInfo> GetExistingOrNewUserInfoAsync(string tenantId, TeamsChannelAccount teamsChannelAccount)
+		{
+			// get existing document to not override optin or other values
+			var user = await GetUserInfoAsync(tenantId, teamsChannelAccount.ObjectId);
+
+			if (user == null)
+            {
+                user = new UserInfo()
+                {
+                    TenantId = tenantId,
+                    UserId = teamsChannelAccount.ObjectId,
+                    Email = teamsChannelAccount.Email,
+					RecentPairUps = new List<string>()
+                };
+            }
+
+			// supporting legacy records
+			if (teamsChannelAccount.Email != null)
 			{
-				TenantId = tenantId,
-				UserId = userId,
-				OptedIn = optedIn,
-				RecentPairUps = new List<string>(),
-				UserFullName = userName
-			};
+				user.Email = teamsChannelAccount.Email;
+            }
 
-			userInfo = await StoreUserOptInStatus(userInfo);
-			return userInfo;
-		}
+            if (teamsChannelAccount.Name != null)
+            {
+                user.UserFullName = teamsChannelAccount.Name;
+            }
 
-		public static async Task<bool> StorePairup(string tenantId, Dictionary<string, UserOptInInfo> userOptInInfo, string userId1, string userId2, string userFullName1, string userFullName2)
+            return user;
+        }
+
+        public static async Task<UserInfo> SetUserOptInStatus(string tenantId, TeamsChannelAccount teamsChannelAccount, bool optedIn)
+		{
+            var user = await GetExistingOrNewUserInfoAsync(tenantId, teamsChannelAccount);
+
+			user.OptedIn = optedIn;
+
+            await InitDatabaseAsync().ConfigureAwait(false);
+
+            return await CreateUpdateUserInfo(user);
+        }
+
+		public static async Task<bool> StorePairup(string tenantId, Dictionary<string, UserInfo> userOptInInfo, string userId1, string userId2, string userFullName1, string userFullName2)
 		{
 			System.Diagnostics.Trace.TraceInformation($"Storing the pair: [{userFullName1}] and [{userFullName2}]");
 			await InitDatabaseAsync().ConfigureAwait(false);
 
 			var maxPairUpHistory = Convert.ToInt64(CloudConfigurationManager.GetSetting("MaxPairUpHistory"));
 
-			var user1Info = new UserOptInInfo()
+			var user1Info = new UserInfo()
 			{
 				TenantId = tenantId,
 				UserId = userId1,
-				UserFullName = userFullName1,
 				OptedIn = true,
 			};
 
-			if (userOptInInfo.TryGetValue(userId1, out UserOptInInfo initialUser1Info))
+			if (userOptInInfo.TryGetValue(userId1, out UserInfo initialUser1Info))
 			{
 				// User already exists.
 				// Get their recent pairs and add the new one to the list.
@@ -250,15 +265,14 @@
 				user1Info.RecentPairUps = new List<string>();
 			}
 
-			var user2Info = new UserOptInInfo()
+			var user2Info = new UserInfo()
 			{
 				TenantId = tenantId,
 				UserId = userId2,
-				UserFullName = userFullName2,
 				OptedIn = true,
 			};
 
-			if (userOptInInfo.TryGetValue(userId2, out UserOptInInfo initialUser2Info))
+			if (userOptInInfo.TryGetValue(userId2, out UserInfo initialUser2Info))
 			{
 				// User already exists.
 				// Get their recent pairs and add the new one to the list.
@@ -293,18 +307,18 @@
 			}
 			else
 			{
-				await StoreUserOptInStatus(user1Info).ConfigureAwait(false);
-				await StoreUserOptInStatus(user2Info).ConfigureAwait(false);
+				await CreateUpdateUserInfo(user1Info).ConfigureAwait(false);
+				await CreateUpdateUserInfo(user2Info).ConfigureAwait(false);
 			}
 
 			return true;
 		}
 
-		private static async Task<UserOptInInfo> StoreUserOptInStatus(UserOptInInfo userInfo)
+		private static async Task<UserInfo> CreateUpdateUserInfo(UserInfo userInfo)
 		{
 			await InitDatabaseAsync().ConfigureAwait(false);
 
-			System.Diagnostics.Trace.TraceInformation($"Set Optin info for user: [{userInfo.UserFullName}] to {userInfo.OptedIn} in DB");
+			System.Diagnostics.Trace.TraceInformation($"Updating document for [{userInfo.UserId}] to [{System.Text.Json.JsonSerializer.Serialize(userInfo)}]");
 
 			if (isTesting)
 			{
@@ -315,18 +329,11 @@
 			var databaseName = CloudConfigurationManager.GetSetting("CosmosDBDatabaseName");
 			var collectionName = CloudConfigurationManager.GetSetting("CosmosCollectionUsers");
 
-			var existingDoc = await GetUserOptInStatusAsync(userInfo.TenantId, userInfo.UserId).ConfigureAwait(false);
-			if (existingDoc != null)
-			{
-				// Overwrite the existing document
-				userInfo.Id = existingDoc.Id;
-			}
-
-			_ = await documentClient.UpsertDocumentAsync(
+			var response = await documentClient.UpsertDocumentAsync(
 				UriFactory.CreateDocumentCollectionUri(databaseName, collectionName),
 				userInfo);
 
-			System.Diagnostics.Trace.TraceInformation($"Updated User: [{userInfo.UserFullName}] in DB");
+			System.Diagnostics.Trace.TraceInformation($"Updated User: [{userInfo.UserId}] in DB. Status: {response.StatusCode}.");
 			return userInfo;
 		}
 	}

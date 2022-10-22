@@ -1,0 +1,33 @@
+﻿{
+  "type": "AdaptiveCard",
+  "body": [
+    {
+      "type": "Container",
+      "items": [
+        {
+          "type": "TextBlock",
+          "size": "Medium",
+          "weight": "Bolder",
+          "text": "👋 Hey %personFirstName%, welcome!"
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "I am _%team%_ bot 🤖 and here to help you Connect with new people in your Organization. Every Month, if you optin to the program I will randomly match you to a new colleague.",
+          "wrap": true
+        },
+        {
+          "type": "TextBlock",
+          "text": "Oh btw, by default I won't send you more messages, just send **optin** or **optout** anytime, but I seriously hope you decide to participate 🤞. Cheers! Until next time 👋 ",
+          "wrap": true
+        }
+      ]
+    }
+  ],
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.0"
+}

@@ -19,6 +19,7 @@
             <th>Member count</th>
             <th>Pairing Status</th>
             <th>Last Paired on</th>
+            <th>Opt mode</th>
         </tr>
 
         @foreach (var team in Model.AllTeamsInfo)
@@ -36,6 +37,9 @@
                 <td>
                     @Html.DisplayFor(modelItem => team.LastPairedAtUTC)
                 </td>
+                <td>
+                    @(team.OptMode ?? "-")
+                </td>
             </tr>
         }
     </table>
@@ -44,15 +48,32 @@
 <p>
     <div class="row">
         <div class="col-md-12">
+                @using (Html.BeginForm("Pair", "Home", FormMethod.Post, new { }))
+                {
+                    @Html.Label("Trigger Pairing: ")<br />
+                    @Html.DropDownListFor(t => t.SelectedTeamId, Model.AllTeams, "--Select Team--")
+                    <br />
+                    <br />
+                    <input type='Submit' value='Trigger pairing' onclick="return confirm('Are you sure you want to trigger Pairing and send notifications?')" />
+                }
+            </div>
+    </div>
+</p>
 
-            @using (Html.BeginForm())
+
+<p>
+    <div class="row">
+        <div class="col-md-12">
+            @using (Html.BeginForm("Welcome", "Home", FormMethod.Post, new { }))
             {
-                @Html.Label("Select Team for Pairing: ")<br />
+                @Html.Label("Welcome members: ")<br />
                 @Html.DropDownListFor(t => t.SelectedTeamId, Model.AllTeams, "--Select Team--")
                 <br />
+                <small>Members that were already welcomed are not going to be welcomed twice. New members should get automated welcome every time they get added to a team.</small>
                 <br />
-                <button type="submit" name="action" onclick="return confirm('Are you sure you want to trigger Pairing and send notifications?')">Submit</button>
+                <input type='Submit' value='Trigger welcome' onclick="return confirm('Are you sure you want to trigger Welcome all members and send notifications?')" />
             }
+
         </div>
     </div>
 </p>

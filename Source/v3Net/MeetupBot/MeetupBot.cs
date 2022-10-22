@@ -20,6 +20,8 @@
         {
             Stopwatch watch = Stopwatch.StartNew();
 
+            string executionId = Guid.NewGuid().ToString();
+
             // Find the team with this team id.
             //     Get all members in the team
             //     Remove the members who have opted out of pairing
@@ -40,7 +42,7 @@
                 return -1;
             }
 
-            Trace.TraceInformation($"Create Pairs and send notifications for team: [{team.Teamname}]");
+            Trace.TraceInformation($"Create Pairs and send notifications for team: [{team.Teamname}]. ExecutionId: {executionId}");
 
             await SetTeamPairingStatusAsync(team, PairingStatus.Pairing);
 
@@ -60,9 +62,8 @@
 
                 foreach (var pair in pairs)
                 {
-                    await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair).ConfigureAwait(false);
+                    await NotifyPair(team.ServiceUrl, team.TenantId, team.Teamname, pair, executionId).ConfigureAwait(false);
                     await MeetupBotDataProvider.StorePairup(team.TenantId, optInStatuses, pair.Item1, pair.Item2).ConfigureAwait(false);
-                    
                     countPairsNotified++;
                 }
 
@@ -172,7 +173,7 @@
             }
         }
 
-        private static async Task NotifyPair(string serviceUrl, string tenantId, string teamName, Tuple<TeamsChannelAccount, TeamsChannelAccount> pair)
+        private static async Task NotifyPair(string serviceUrl, string tenantId, string teamName, Tuple<TeamsChannelAccount, TeamsChannelAccount> pair, string executionId)
         {
             var teamsPerson1 = pair.Item1.AsTeamsChannelAccount();
             var teamsPerson2 = pair.Item2.AsTeamsChannelAccount();
@@ -184,7 +185,12 @@
             // Fill in person1's info in the card for person2
             var cardForPerson2 = PairUpNotificationAdaptiveCard.GetCard(isPerson1: false, teamName, teamsPerson1.Name, teamsPerson1.GivenName, teamsPerson2.GivenName, teamsPerson1.UserPrincipalName);
 
+            string person1Alias = teamsPerson1.Email.Split('@')[0];
+            Trace.TraceInformation($"Send notification to user with alias: {person1Alias} for team: {teamName}. ExecutionId: {executionId}");
             await NotifyUser(serviceUrl, cardForPerson1, teamsPerson1, tenantId).ConfigureAwait(false);
+
+            string person2Alias = teamsPerson2.Email.Split('@')[0];
+            Trace.TraceInformation($"Send notification to user with alias: {person2Alias} for team: {teamName}. ExecutionId: {executionId}");
             await NotifyUser(serviceUrl, cardForPerson2, teamsPerson2, tenantId).ConfigureAwait(false);
 
             var serviceBusEnabled = CloudConfigurationManager.GetSetting("ServiceBusEnabled") ?? "false";
@@ -264,10 +270,10 @@
                 };
 
                 var isTesting = Boolean.Parse(CloudConfigurationManager.GetSetting("Testing"));
-
+                
                 if (isTesting)
                 {
-                    Trace.TraceInformation($"Skip sending notification to [{user.Name}] in testing mode");
+                    Trace.TraceInformation($"Skip sending notification to [{user.Name}] in testing mode.");
                 }
                 else
                 {
@@ -341,7 +347,7 @@
                 }
             }
 
-            Trace.TraceInformation($"Found [{optedInUsers.Count}] users in the Team: [{teamInfo.Teamname}]");
+            Trace.TraceInformation($"Found [{optedInUsers.Count}] opted in users in the Team: [{teamInfo.Teamname}]");
             return optedInUsers;
         }
 
